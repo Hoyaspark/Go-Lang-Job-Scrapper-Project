@@ -60,11 +60,13 @@ func writeJobs(jobs []extractedJob) {
 
 	checkErr(wErr)
 
+	result := [][]string{}
 	for _, job := range jobs {
 		jobSlice := []string{job.id, job.title, job.location, job.salary}
-
-		w.Write(jobSlice)
+		result = append(result, jobSlice)
 	}
+
+	w.WriteAll(result)
 
 }
 
