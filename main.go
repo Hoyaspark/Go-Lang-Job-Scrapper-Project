@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type extractedJob struct {
@@ -21,6 +22,8 @@ type extractedJob struct {
 var baseUrl string = "https://kr.indeed.com/jobs?q=python&limit=50"
 
 func main() {
+	start := time.Now()
+
 	totalPages := getPages()
 
 	e := make(chan []extractedJob)
@@ -37,7 +40,8 @@ func main() {
 
 	writeJobs(results)
 
-	fmt.Println("Done, extracted")
+	end := time.Now()
+	fmt.Println("Done, extracted Duration : ", end.Second()-start.Second(), "s")
 
 }
 
@@ -79,20 +83,32 @@ func getPage(page int, e chan<- []extractedJob) {
 
 	checkErr(err)
 
-	doc.Find(".job_seen_beacon").Each(func(i int, s *goquery.Selection) {
-		jt := s.Find(".jobTitle").Find("a")
+	ex := make(chan extractedJob)
 
-		id, _ := jt.Attr("data-jk")
-		title, _ := jt.Find("span").Attr("title")
+	searchCards := doc.Find(".job_seen_beacon")
 
-		location := s.Find(".companyLocation").Text()
-
-		salary := strings.Replace(s.Find(".attribute_snippet").Text(), "\"", "", 1)
-		jobs = append(jobs, extractedJob{id: id, title: title, location: location, salary: salary})
+	searchCards.Each(func(i int, s *goquery.Selection) {
+		go extract(s, ex)
 	})
 
-	e <- jobs
+	for i := 0; i < searchCards.Length(); i++ {
+		jobs = append(jobs, <-ex)
+	}
 
+	e <- jobs
+}
+
+func extract(s *goquery.Selection, ex chan<- extractedJob) {
+	jt := s.Find(".jobTitle").Find("a")
+
+	id, _ := jt.Attr("data-jk")
+	title, _ := jt.Find("span").Attr("title")
+
+	location := s.Find(".companyLocation").Text()
+
+	salary := strings.Replace(s.Find(".attribute_snippet").Text(), "\"", "", 1)
+
+	ex <- extractedJob{id: id, title: title, location: location, salary: salary}
 }
 
 func getPages() int {
